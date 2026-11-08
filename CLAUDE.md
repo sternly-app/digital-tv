@@ -6,14 +6,14 @@ A single-file static web page (`index.html`, no build step, no dependencies) tha
 - Golden theme: warm brown-black, gold, amber, ivory. The rangoli is multicolor (orange, yellow, red, green, teal). **Strictly no purple, pink, plum or similar.**
 - "Happy Diwali" greeting in a square box at the center, with Devanagari line, large type.
 - Colorful rangoli in the background that always rotates and never clips.
-- Photo frame (bottom left): crossfade carousel of the photos in `photos/` (listed in `photos/photos.js`). Without folder photos it shows "Add photos" for uploads. Spotify card (bottom right) is exactly the same size as the photo frame.
+- Photo frame (bottom left): crossfade carousel of the photos in `photos/` (listed in `photos/photos.js`), in random order, reshuffled every round with no back-to-back repeats. No counter or caption, just the photo. Without folder photos it shows "Add photos" for uploads. Spotify card (bottom right) is exactly the same size as the photo frame.
 - Spotify card shows the song playing on the owner's account (cover, title, artist, progress, device) with previous, play/pause, next and volume. Owner has Premium. Music plays on a phone or speaker; the page is a remote and display. The old embed player is kept as a settings toggle.
 - Must run directly on the TV: always full screen, never auto-off or screensaver, shown all the time. No on-screen "press OK" message.
 - Classy and restrained. No emoji.
 
 ## Layout and files
 - `index.html`: the whole app. Sections in the script, in order: settings and `localStorage`, garland SVG, background rangoli (SMIL), diyas, fireworks canvas loop, clock, Spotify embed, Spotify live (PKCE login, polling, controls), pictures (folder + IndexedDB + slideshow), settings panel, fullscreen and wake lock, keep-awake video, keys, idle UI hiding.
-- `photos/`: the owner's photos plus `photos.js` (generated list). `sample-0*.jpg` are test images, delete them before deploying.
+- `photos/`: the owner's photos (copied from `~/Desktop/Diwali Photos`, shrunk to 1200px) plus `photos.js` (generated list).
 - `scripts/make_photos.py`: rewrites `photos/photos.js`. `--shrink` resizes to 1200px and bakes in EXIF rotation (Pillow). Run after changing photos.
 - `PLAN.md`: the plan and research behind the carousel and Spotify card.
 - `diwali-tv.html`: an older copy of the app, not referenced anywhere.

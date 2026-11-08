@@ -113,7 +113,6 @@ body.idle { cursor: none; }
 #photo .in { position: relative; width: 100%; height: 100%; border: 1px solid var(--line); overflow: hidden; background: #1a1108; }
 #photo svg, #photo img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; transition: opacity 1.4s ease; }
 #photo img { object-fit: cover; opacity: 0; will-change: opacity; }
-#pc { position: absolute; right: 8px; bottom: 6px; z-index: 2; font: 400 max(10px, calc(var(--s) * 2.6)) var(--font-mono); letter-spacing: .14em; color: var(--gold-soft); opacity: .75; text-shadow: 0 1px 3px #000; }
 #photo.folder .cap { display: none; }
 #photo .cap {
   position: absolute; left: 0; right: 0; top: 0; padding: 8px 10px 18px; text-align: center; z-index: 2;
@@ -263,7 +262,6 @@ input[type="range"] { width: 100%; }
     <div class="in">
       <img id="ia" alt="">
       <img id="ib" alt="">
-      <div id="pc" hidden></div>
       <button class="cap" id="capbtn" type="button"><svg class="plus" width="46" height="46" viewBox="0 0 46 46" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="23" cy="23" r="21"/><path d="M23 14v18M14 23h18"/></svg><span>Add photos</span></button>
     </div>
   </section>
@@ -803,12 +801,19 @@ input[type="range"] { width: 100%; }
     var all = folder.concat(photos);
     slides = [];
     if (!all.length) return;
-    if (S.ss) all.forEach(function (p) { slides.push({ url: p.url }); });
+    if (S.ss) { all.forEach(function (p) { slides.push({ url: p.url }); }); shuffle(slides); }
     else slides.push({ url: all[0].url });
   }
+  /* random order; after each full round, reshuffle so no pattern repeats and the same photo never shows twice in a row */
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
   function showSlide(i) {
-    var pc = $('pc');
-    if (!slides.length) { imgs[0].style.opacity = 0; imgs[1].style.opacity = 0; pc.hidden = true; return; }
+    if (!slides.length) { imgs[0].style.opacity = 0; imgs[1].style.opacity = 0; return; }
+    if (i >= slides.length && slides.length > 2) {
+      var last = slides[slides.length - 1];
+      shuffle(slides);
+      if (slides[0] === last) { var k = 1 + Math.floor(Math.random() * (slides.length - 1)); slides[0] = slides[k]; slides[k] = last; }
+      i = 0;
+    }
     si = (i % slides.length + slides.length) % slides.length;
     var nx = imgs[cur ^ 1], pv = imgs[cur], my = ++stok, n = si;
     /* wait until the next photo is decoded, then crossfade, so the fade never stutters */
@@ -817,7 +822,6 @@ input[type="range"] { width: 100%; }
       var fade = function () {
         if (my !== stok) return;
         fails = 0; nx.style.opacity = 1; pv.style.opacity = 0; cur ^= 1;
-        pc.textContent = (n + 1) + ' / ' + slides.length; pc.hidden = slides.length < 2;
       };
       if (nx.decode) nx.decode().then(fade, fade); else fade();
     };

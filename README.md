@@ -9,7 +9,7 @@ Open `index.html` in Chrome. No build, no install.
 Host `index.html` on GitHub Pages (public repo, Settings > Pages, deploy from `main`), then open the link in the TV's browser. See `CLAUDE.md` for TV settings and more reliable always-on options.
 
 ## Photos
-Put photos in `photos/`, then run `python3 scripts/make_photos.py` (add `--shrink` to resize and fix rotation, needs `pip3 install pillow`). Delete the `sample-0*.jpg` test images first.
+Put photos in `photos/`, then run `python3 scripts/make_photos.py` (add `--shrink` to resize and fix rotation, needs `pip3 install pillow`).
 
 ## Spotify
 1. developer.spotify.com/dashboard > Create app > Web API. Add redirect URIs `https://<user>.github.io/<repo>/` and `http://127.0.0.1:8000/`.
