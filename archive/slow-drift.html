@@ -1,0 +1,502 @@
+<title>Slow Drift</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed stage (ambient canvas or photos) with one drifting clock block; settings drawer slides in from the right. */
+:root {
+  --ink: #05070d;
+  --surface: #0d1220;
+  --surface-2: #151c30;
+  --line: #27304a;
+  --text: #eef1f8;
+  --muted: #8d97b3;
+  --accent: #7fb2ff;
+  --font-display: "Jost", "Futura", "Century Gothic", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  padding-block: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-display);
+  overflow: hidden;
+}
+body.idle { cursor: none; }
+
+#stage { position: fixed; inset: 0; background: var(--ink); overflow: hidden; }
+#ambient { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.photo {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  opacity: 0; transition: opacity 2.6s ease;
+  transform-origin: 50% 50%;
+}
+.photo.on { opacity: 1; animation: kb var(--kb, 20s) ease-out forwards; }
+@keyframes kb { from { transform: scale(1); } to { transform: scale(1.09); } }
+#scrim {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,.38), rgba(0,0,0,0) 62%);
+}
+#dim { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+
+#drift {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  will-change: transform;
+}
+#clockblock { text-align: center; padding: 0 4vw; max-width: 100%; }
+#time {
+  font-weight: 200;
+  font-size: clamp(72px, 21vw, 420px);
+  line-height: .9;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 40px rgba(0,0,0,.35);
+  white-space: nowrap;
+}
+#secs { font-size: .28em; font-weight: 300; letter-spacing: 0; margin-left: .12em; opacity: .7; }
+#ampm { font-size: .2em; font-weight: 300; letter-spacing: .04em; margin-left: .2em; opacity: .7; }
+#date {
+  margin-top: 1.6vh;
+  font-size: clamp(14px, 2.6vw, 44px);
+  font-weight: 300;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  opacity: .78;
+  text-shadow: 0 1px 18px rgba(0,0,0,.45);
+}
+#msg {
+  margin-top: 3.2vh;
+  font-size: clamp(16px, 2.4vw, 40px);
+  font-weight: 300;
+  max-width: 28ch;
+  margin-inline: auto;
+  text-wrap: balance;
+  line-height: 1.3;
+  text-shadow: 0 1px 18px rgba(0,0,0,.5);
+}
+#msg:empty, #date:empty { display: none; }
+#empty-hint {
+  margin-top: 2.4vh;
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 1.3vw, 18px);
+  letter-spacing: .08em;
+  color: var(--accent);
+  opacity: .9;
+}
+
+/* controls */
+#gear {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(13,18,32,.78);
+  color: var(--text);
+  display: grid; place-items: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: opacity .4s ease;
+}
+#gear:focus-visible, button:focus-visible, input:focus-visible, label.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.idle #gear { opacity: 0; pointer-events: none; }
+#hint {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em;
+  color: var(--muted);
+  transition: opacity .8s ease;
+}
+#hint.gone { opacity: 0; }
+
+#panel {
+  position: fixed; top: 0; bottom: 0;
+  right: 0;
+  width: min(400px, 100%);
+  z-index: 30;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  padding-top: max(20px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  padding-left: 22px;
+  padding-right: max(22px, env(safe-area-inset-right, 0px));
+  overflow-y: auto;
+  transform: translateX(102%);
+  transition: transform .35s cubic-bezier(.2,.8,.2,1);
+  display: flex; flex-direction: column; gap: 22px;
+}
+#panel.open { transform: none; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.head h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: .02em; }
+.x { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 8px 12px; font: 500 12px var(--font-mono); cursor: pointer; letter-spacing: .06em; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.label { font: 500 11px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.seg button, .btn {
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 10px; font: 400 15px var(--font-display); cursor: pointer;
+}
+.seg button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sw {
+  aspect-ratio: 1; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0;
+}
+.sw[aria-pressed="true"] { border-color: var(--text); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; }
+.row span { min-width: 0; }
+.toggle { appearance: none; width: 44px; height: 26px; border-radius: 13px; background: var(--surface-2); border: 1px solid var(--line); position: relative; cursor: pointer; flex: none; transition: background .2s; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .2s, background .2s; }
+.toggle:checked { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); border-color: var(--accent); }
+.toggle:checked::after { transform: translateX(18px); background: var(--accent); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.rv { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+input[type="text"] {
+  width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px; font: 400 15px var(--font-display);
+}
+.drop {
+  border: 1px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center;
+  font-size: 14px; color: var(--muted); cursor: pointer; display: block;
+}
+.drop.over { border-color: var(--accent); color: var(--accent); }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.th { position: relative; aspect-ratio: 16/10; border-radius: 6px; background-size: cover; background-position: center; border: 1px solid var(--line); }
+.th button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: none; background: rgba(0,0,0,.7); color: #fff; font: 500 13px/1 var(--font-mono); cursor: pointer; padding: 0; }
+.note { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
+.keys { font: 400 12px/1.8 var(--font-mono); color: var(--muted); }
+.keys b { color: var(--text); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) {
+  .photo.on { animation: none; }
+  .photo { transition-duration: .01s; }
+}
+</style>
+
+<div id="stage">
+  <canvas id="ambient" width="480" height="270" aria-hidden="true"></canvas>
+  <div class="photo" id="pa"></div>
+  <div class="photo" id="pb"></div>
+  <div id="scrim"></div>
+  <div id="drift"><div id="clockblock">
+    <div id="time"></div>
+    <div id="date"></div>
+    <div id="msg"></div>
+    <div id="empty-hint" hidden>No photos yet. Open settings and add some.</div>
+  </div></div>
+  <div id="dim"></div>
+</div>
+
+<div id="hint">Tap the gear or press S for settings. F for full screen.</div>
+<button id="gear" aria-label="Open settings" aria-controls="panel">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+</button>
+
+<aside id="panel" aria-label="Screensaver settings">
+  <div class="head"><h1>Slow Drift</h1><button class="x" id="close">CLOSE</button></div>
+
+  <div class="group">
+    <div class="label">Background</div>
+    <div class="seg" id="mode">
+      <button data-v="ambient" aria-pressed="true">Ambient color</button>
+      <button data-v="photos" aria-pressed="false">Photo slideshow</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="label">Color mood</div>
+    <div class="swatches" id="pal"></div>
+  </div>
+
+  <div class="group">
+    <div class="label">Photos</div>
+    <label class="drop" id="drop" for="files">Add photos from this device<br><span style="font-size:12px">or drop them here</span></label>
+    <input id="files" type="file" accept="image/*" multiple hidden>
+    <div class="thumbs" id="thumbs"></div>
+    <label class="row"><span>Seconds per photo</span><span class="rv" id="ivv"></span></label>
+    <input id="iv" type="range" min="5" max="120" step="5">
+  </div>
+
+  <div class="group">
+    <div class="label">Clock</div>
+    <label class="row"><span>24-hour time</span><input class="toggle" type="checkbox" id="h24"></label>
+    <label class="row"><span>Show seconds</span><input class="toggle" type="checkbox" id="sec"></label>
+    <label class="row"><span>Show date</span><input class="toggle" type="checkbox" id="dt"></label>
+    <label class="row"><span>Drift to protect the screen</span><input class="toggle" type="checkbox" id="dr"></label>
+    <label class="label" for="txt" style="margin-top:6px">Your message</label>
+    <input type="text" id="txt" maxlength="80" placeholder="Movie night, Wi-Fi: guest1234, anything">
+  </div>
+
+  <div class="group">
+    <label class="row"><span>Brightness</span><span class="rv" id="dimv"></span></label>
+    <input id="dim-r" type="range" min="0" max="70" step="5">
+  </div>
+
+  <div class="group">
+    <button class="btn" id="full">Go full screen</button>
+    <p class="note">Settings and photos stay saved in this browser on this device.</p>
+    <div class="keys"><b>S</b> settings &nbsp; <b>F</b> full screen &nbsp; <b>←</b> <b>→</b> change photo</div>
+  </div>
+</aside>
+
+<script>
+(function () {
+  var PALETTES = {
+    dusk:  { name: 'Dusk',  bg: '#070913', c: ['#5b6cff', '#c05bd6', '#ff7a9c'] },
+    ember: { name: 'Ember', bg: '#0d0605', c: ['#ff6a2b', '#ffb14a', '#c8283c'] },
+    ocean: { name: 'Ocean', bg: '#031017', c: ['#14b8c4', '#2f6bff', '#5de0b3'] },
+    moss:  { name: 'Moss',  bg: '#060b07', c: ['#58c46a', '#c9d65a', '#1f8f6a'] },
+    mono:  { name: 'Slate', bg: '#07080b', c: ['#8a93a8', '#c9cfdb', '#4a5266'] }
+  };
+  var DEFAULTS = { mode: 'ambient', pal: 'dusk', iv: 20, h24: false, sec: false, dt: true, dr: true, txt: '', dim: 0 };
+  var S = Object.assign({}, DEFAULTS);
+  try { var raw = localStorage.getItem('slowdrift.v1'); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
+  function save() { try { localStorage.setItem('slowdrift.v1', JSON.stringify(S)); } catch (e) {} }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var photos = []; // {id, url, blob}
+  var panel = $('panel');
+
+  /* ---------- storage for photos (IndexedDB, optional) ---------- */
+  var dbp = null;
+  function db() {
+    if (dbp) return dbp;
+    dbp = new Promise(function (res, rej) {
+      try {
+        var r = indexedDB.open('slowdrift', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true }); };
+        r.onsuccess = function () { res(r.result); };
+        r.onerror = function () { rej(r.error); };
+      } catch (e) { rej(e); }
+    });
+    return dbp;
+  }
+  function dbAll() {
+    return db().then(function (d) {
+      return new Promise(function (res, rej) {
+        var q = d.transaction('photos').objectStore('photos').getAll();
+        q.onsuccess = function () { res(q.result); };
+        q.onerror = function () { rej(q.error); };
+      });
+    });
+  }
+  function dbAdd(blob) {
+    return db().then(function (d) {
+      return new Promise(function (res, rej) {
+        var q = d.transaction('photos', 'readwrite').objectStore('photos').add({ blob: blob });
+        q.onsuccess = function () { res(q.result); };
+        q.onerror = function () { rej(q.error); };
+      });
+    });
+  }
+  function dbDel(id) {
+    return db().then(function (d) { d.transaction('photos', 'readwrite').objectStore('photos').delete(id); });
+  }
+
+  function shrink(file) {
+    return createImageBitmap(file).then(function (bmp) {
+      var max = 2560, k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      var c = document.createElement('canvas');
+      c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      return new Promise(function (res) { c.toBlob(res, 'image/jpeg', 0.88); });
+    });
+  }
+  function addFiles(list) {
+    Array.prototype.forEach.call(list, function (f) {
+      if (!/^image\//.test(f.type)) return;
+      shrink(f).then(function (blob) {
+        if (!blob) return;
+        var p = { id: 't' + Math.random().toString(36).slice(2), blob: blob, url: URL.createObjectURL(blob) };
+        photos.push(p);
+        dbAdd(blob).then(function (id) { p.id = id; }).catch(function () {});
+        renderThumbs(); applyMode();
+      }).catch(function () {});
+    });
+  }
+  function removePhoto(i) {
+    var p = photos.splice(i, 1)[0];
+    if (!p) return;
+    URL.revokeObjectURL(p.url);
+    if (typeof p.id === 'number') dbDel(p.id).catch(function () {});
+    renderThumbs(); applyMode();
+  }
+  function renderThumbs() {
+    var t = $('thumbs'); t.innerHTML = '';
+    photos.forEach(function (p, i) {
+      var d = document.createElement('div'); d.className = 'th'; d.style.backgroundImage = 'url(' + p.url + ')';
+      var b = document.createElement('button'); b.textContent = 'x'; b.setAttribute('aria-label', 'Remove photo ' + (i + 1));
+      b.onclick = function () { removePhoto(i); };
+      d.appendChild(b); t.appendChild(d);
+    });
+  }
+
+  /* ---------- ambient canvas ---------- */
+  var cv = $('ambient'), cx = cv.getContext('2d');
+  var blobs = [];
+  for (var i = 0; i < 6; i++) blobs.push({ px: Math.random() * 6.28, py: Math.random() * 6.28, sx: .03 + Math.random() * .05, sy: .025 + Math.random() * .045, r: .34 + Math.random() * .22, ci: i % 3 });
+  var lastDraw = 0;
+  function drawAmbient(t) {
+    if (S.mode === 'photos' && photos.length) return;
+    if (t - lastDraw < 33) return;
+    lastDraw = t;
+    var P = PALETTES[S.pal] || PALETTES.dusk, w = cv.width, h = cv.height, s = t / 1000;
+    cx.globalCompositeOperation = 'source-over';
+    cx.fillStyle = P.bg; cx.fillRect(0, 0, w, h);
+    cx.globalCompositeOperation = 'screen';
+    blobs.forEach(function (b) {
+      var x = (.5 + .42 * Math.sin(s * b.sx + b.px)) * w;
+      var y = (.5 + .42 * Math.cos(s * b.sy + b.py)) * h;
+      var r = b.r * w;
+      var g = cx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, hexA(P.c[b.ci], .5)); g.addColorStop(1, hexA(P.c[b.ci], 0));
+      cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+    });
+  }
+  function hexA(hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  /* ---------- slideshow ---------- */
+  var layers = [$('pa'), $('pb')], cur = 0, idx = -1, timer = null;
+  function showPhoto(i) {
+    if (!photos.length) return;
+    idx = (i + photos.length) % photos.length;
+    var next = layers[cur ^ 1], prev = layers[cur];
+    next.style.backgroundImage = 'url(' + photos[idx].url + ')';
+    next.style.setProperty('--kb', (S.iv + 4) + 's');
+    next.classList.remove('on'); void next.offsetWidth; next.classList.add('on');
+    prev.classList.remove('on');
+    cur ^= 1;
+  }
+  function restartTimer() {
+    clearInterval(timer);
+    if (S.mode === 'photos' && photos.length > 1) timer = setInterval(function () { showPhoto(idx + 1); }, S.iv * 1000);
+  }
+  function applyMode() {
+    var usePhotos = S.mode === 'photos' && photos.length > 0;
+    $('empty-hint').hidden = !(S.mode === 'photos' && photos.length === 0);
+    $('scrim').style.display = usePhotos ? 'block' : 'none';
+    if (usePhotos) { if (idx < 0 || idx >= photos.length) showPhoto(0); else if (!layers[cur].classList.contains('on')) showPhoto(idx); }
+    else layers.forEach(function (l) { l.classList.remove('on'); });
+    restartTimer();
+  }
+
+  /* ---------- clock + drift ---------- */
+  var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var lastStr = '';
+  function tick() {
+    var d = new Date(), h = d.getHours(), m = d.getMinutes(), s = d.getSeconds(), ap = '';
+    if (!S.h24) { ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; }
+    var str = (S.h24 ? ('0' + h).slice(-2) : String(h)) + ':' + ('0' + m).slice(-2) + (S.sec ? ':' + ('0' + s).slice(-2) : '') + ap;
+    if (str !== lastStr) {
+      lastStr = str;
+      var html = (S.h24 ? ('0' + h).slice(-2) : String(h)) + ':' + ('0' + m).slice(-2);
+      if (S.sec) html += '<span id="secs">' + ('0' + s).slice(-2) + '</span>';
+      if (!S.h24) html += '<span id="ampm">' + ap + '</span>';
+      $('time').innerHTML = html;
+    }
+    var dt = S.dt ? DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate() : '';
+    if ($('date').textContent !== dt) $('date').textContent = dt;
+  }
+  function frame(t) {
+    drawAmbient(t);
+    var el = $('drift');
+    if (S.dr) {
+      var s = t / 1000, x = Math.sin(s / 41) * 9, y = Math.sin(s / 29 + 1.3) * 8;
+      el.style.transform = 'translate(' + x.toFixed(2) + 'vw,' + y.toFixed(2) + 'vh)';
+    } else el.style.transform = 'none';
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- panel wiring ---------- */
+  function applyAll() {
+    $('msg').textContent = S.txt;
+    $('dim').style.opacity = S.dim / 100;
+    $('dimv').textContent = (100 - S.dim) + '%';
+    $('ivv').textContent = S.iv + ' s';
+    lastStr = ''; tick(); applyMode();
+    document.querySelectorAll('#mode button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === S.mode); });
+    document.querySelectorAll('#pal .sw').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === S.pal); });
+    $('h24').checked = S.h24; $('sec').checked = S.sec; $('dt').checked = S.dt; $('dr').checked = S.dr;
+    $('txt').value = S.txt; $('iv').value = S.iv; $('dim-r').value = 100 - (100 - S.dim);
+  }
+  var pal = $('pal');
+  Object.keys(PALETTES).forEach(function (k) {
+    var P = PALETTES[k], b = document.createElement('button');
+    b.className = 'sw'; b.dataset.v = k; b.title = P.name; b.setAttribute('aria-label', P.name + ' color mood');
+    b.style.background = 'linear-gradient(135deg,' + P.c[0] + ',' + P.c[1] + ' 55%,' + P.c[2] + ')';
+    b.onclick = function () { S.pal = k; save(); applyAll(); };
+    pal.appendChild(b);
+  });
+  document.querySelectorAll('#mode button').forEach(function (b) {
+    b.onclick = function () { S.mode = b.dataset.v; save(); applyAll(); };
+  });
+  [['h24', 'h24'], ['sec', 'sec'], ['dt', 'dt'], ['dr', 'dr']].forEach(function (p) {
+    $(p[0]).onchange = function () { S[p[1]] = this.checked; save(); applyAll(); };
+  });
+  $('txt').oninput = function () { S.txt = this.value; save(); $('msg').textContent = S.txt; };
+  $('iv').oninput = function () { S.iv = +this.value; save(); $('ivv').textContent = S.iv + ' s'; restartTimer(); };
+  $('dim-r').oninput = function () { S.dim = +this.value; save(); applyAll(); };
+  $('files').onchange = function () { addFiles(this.files); this.value = ''; };
+  var drop = $('drop');
+  ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (ev) { addFiles(ev.dataTransfer.files); });
+
+  function setPanel(open) { panel.classList.toggle('open', open); $('gear').setAttribute('aria-expanded', open); }
+  $('gear').onclick = function () { setPanel(!panel.classList.contains('open')); };
+  $('close').onclick = function () { setPanel(false); };
+
+  function goFull() {
+    var el = document.documentElement;
+    try { var p = el.requestFullscreen && el.requestFullscreen(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+    wake();
+  }
+  var lock = null;
+  function wake() { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { lock = l; }).catch(function () {}); } catch (e) {} }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') wake(); });
+  $('full').onclick = function () { setPanel(false); goFull(); };
+
+  document.addEventListener('keydown', function (e) {
+    if (/input|textarea/i.test(e.target.tagName) && e.target.type === 'text') return;
+    var k = e.key.toLowerCase();
+    if (k === 's') setPanel(!panel.classList.contains('open'));
+    else if (k === 'f') goFull();
+    else if (k === 'escape') setPanel(false);
+    else if (k === 'arrowright') { showPhoto(idx + 1); restartTimer(); }
+    else if (k === 'arrowleft') { showPhoto(idx - 1); restartTimer(); }
+  });
+
+  /* idle: hide gear and cursor */
+  var idleT;
+  function wakeUI() {
+    document.body.classList.remove('idle');
+    clearTimeout(idleT);
+    idleT = setTimeout(function () { if (!panel.classList.contains('open')) document.body.classList.add('idle'); }, 4000);
+  }
+  ['mousemove', 'pointerdown', 'touchstart', 'keydown'].forEach(function (e) { document.addEventListener(e, wakeUI, { passive: true }); });
+  setTimeout(function () { $('hint').classList.add('gone'); }, 9000);
+
+  /* boot */
+  applyAll(); wakeUI();
+  setInterval(tick, 250);
+  requestAnimationFrame(frame);
+  dbAll().then(function (rows) {
+    rows.forEach(function (r) { photos.push({ id: r.id, blob: r.blob, url: URL.createObjectURL(r.blob) }); });
+    renderThumbs(); applyMode();
+  }).catch(function () {});
+})();
+</script>
