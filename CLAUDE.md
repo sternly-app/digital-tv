@@ -12,9 +12,10 @@ A single-file static web page (`index.html`, no build step, no dependencies) tha
 - Classy and restrained. No emoji.
 
 ## Layout and files
-- `index.html`: the whole app. Sections in the script, in order: settings and `localStorage`, garland SVG, background rangoli (SMIL), diyas, fireworks canvas loop, clock, Spotify embed, Spotify live (PKCE login, polling, controls), pictures (folder + IndexedDB + slideshow), settings panel, fullscreen and wake lock, keep-awake video, keys, idle UI hiding.
+- `index.html`: the whole app. Sections in the script, in order: settings and `localStorage`, garland SVG, background rangoli (SMIL), diyas, fireworks canvas loop, clock, Spotify embed, Spotify live (PKCE login, polling, controls), pictures (folder + IndexedDB + slideshow), settings panel, fullscreen and wake lock, keep-awake video and interval, keys, idle UI hiding.
 - `photos/`: the owner's photos (copied from `~/Desktop/Diwali Photos`, shrunk to 1200px) plus `photos.js` (generated list).
 - `scripts/make_photos.py`: rewrites `photos/photos.js`. `--shrink` resizes to 1200px and bakes in EXIF rotation (Pillow). Run after changing photos.
+- `keepawake.mp4`, `keepawake.webm`: the keep-awake video (about 5 KB each).
 - `PLAN.md`: the plan and research behind the carousel and Spotify card.
 - `diwali-tv.html`: an older copy of the app, not referenced anywhere.
 - `archive/slow-drift.html`, `archive/diwali-lights.html`: earlier iterations, kept for reference only. They were claude.ai artifacts (iframes blocked, so Spotify was links only). Do not edit.
@@ -40,7 +41,7 @@ A single-file static web page (`index.html`, no build step, no dependencies) tha
 - **EXIF:** Chromium below 81 (webOS 6) ignores photo rotation, so run `make_photos.py --shrink`.
 - **Spotify embed (fallback mode):** the embed URL is `https://open.spotify.com/embed/{type}/{id}?utm_source=generator&theme=0`. Full songs need a Spotify login in the same browser, otherwise 30-second previews and a "Get Spotify" overlay that cannot be removed. The embed cannot report what is playing, and it cannot show songs playing in the Spotify app. A live now-playing display would need the Spotify Web API (PKCE login, a free developer app, hosted HTTPS redirect URI).
 - **Fullscreen** needs a user gesture. The page goes full screen quietly on the first click or Enter. Kiosk apps avoid the gesture.
-- **Keep-awake** (wake lock plus a tiny muted canvas-stream video) is best effort and unproven on LG. LG's browser has been reported to idle after about 40 minutes regardless. The TV setting General > System > Time and Timer > Timers > Auto Power Off after 4 hours should be off.
+- **Keep-awake:** the LG screensaver (about 2 minutes without remote input) is a webOS system feature. Since webOS 6 it cannot be turned off, and LG says only full-screen video playback holds it off. Wake Lock is not supported on webOS. The page plays `keepawake.mp4`/`.webm` (4 s, 64x36, near-black, silent audio track) looping across the full screen at 1% opacity behind the scene, unmutes it on the first click or key, and every 30 s restarts it and renews the wake lock. Verified in desktop Chrome; unproven on LG. If it fails, the fix is an HDMI device (Fire TV Stick with Fully Kiosk, or a mini PC with Chrome `--kiosk`). Files regenerated with Chrome MediaRecorder, no ffmpeg on this machine. The TV setting General > System > Time and Timer > Timers > Auto Power Off after 4 hours should be off.
 - The claude.ai preview pane blocks iframes, so the player shows a broken icon there. Test in Chrome.
 
 ## Known gaps and cleanup
