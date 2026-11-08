@@ -35,7 +35,7 @@ A single-file static web page (`index.html`, no build step, no dependencies) tha
 ## Constraints
 - **Old webOS browsers (Chromium about 79+):** avoid container queries, `aspect-ratio`, flex `gap` in main layout, `inset`, `color-mix`. Use `calc()` with `--u`, explicit width and height, margins.
 - **Rotation uses SMIL `animateTransform`** on the rangoli groups. CSS `transform-box` rotation orbited off-center and clipped. Do not go back to it.
-- **Spotify live card:** Web API, Authorization Code with PKCE, no secret. Scopes `user-read-playback-state user-read-currently-playing user-modify-playback-state`. Polls `GET /v1/me/player` every 4 s while playing, 12 s idle, 30 s when hidden; honors 429 Retry-After. Controls need Premium (403 shows a message). 204/no item shows the idle view with a device list (`PUT /me/player` to transfer). Redirect URI is `location.origin + location.pathname` and must be registered exactly (HTTPS, or `http://127.0.0.1:PORT/`; `localhost` is rejected). Development-mode apps need the owner to have Premium and list the user under User Management (max 5). Refresh tokens expire 6 months after login. `CLIENT_ID` constant at the top of the section can hard-code the ID. The "login code" (`clientid:refreshtoken`) moves a laptop login to the TV. A pure-JS SHA-256 fallback covers browsers without `crypto.subtle`. Do not use the Web Playback SDK (needs Widevine, not supported on webOS).
+- **Spotify live card:** Web API, Authorization Code with PKCE, no secret. Scopes `user-read-playback-state user-read-currently-playing user-modify-playback-state`. Polls `GET /v1/me/player` every 4 s while playing, 12 s idle, 30 s when hidden; honors 429 Retry-After. Controls need Premium (403 shows a message). 204/no item shows the idle view with a device list (`PUT /me/player` to transfer). Redirect URI is `location.origin + location.pathname` and must be registered exactly (HTTPS, or `http://127.0.0.1:PORT/`; `localhost` is rejected). Development-mode apps need the owner to have Premium and list the user under User Management (max 5). Refresh tokens expire 6 months after login. `CLIENT_ID` is set in the file (owner's app), so the Client ID setting is only an override when CLIENT_ID is empty. The "login code" (`clientid:refreshtoken`) moves a laptop login to the TV. A pure-JS SHA-256 fallback covers browsers without `crypto.subtle`. Do not use the Web Playback SDK (needs Widevine, not supported on webOS).
 - **LG remote keys:** Left/Right 37/39 change photo; Play 415, Pause 19, Play/Pause 10252, FF 417 next, RW 412 previous.
 - **EXIF:** Chromium below 81 (webOS 6) ignores photo rotation, so run `make_photos.py --shrink`.
 - **Spotify embed (fallback mode):** the embed URL is `https://open.spotify.com/embed/{type}/{id}?utm_source=generator&theme=0`. Full songs need a Spotify login in the same browser, otherwise 30-second previews and a "Get Spotify" overlay that cannot be removed. The embed cannot report what is playing, and it cannot show songs playing in the Spotify app. A live now-playing display would need the Spotify Web API (PKCE login, a free developer app, hosted HTTPS redirect URI).
@@ -54,14 +54,14 @@ A single-file static web page (`index.html`, no build step, no dependencies) tha
 3. Serve with `python3 -m http.server 8000 --bind 127.0.0.1` and open `http://127.0.0.1:8000/` (needed for Spotify login; file:// cannot log in). With a Client ID set, Connect must go to accounts.spotify.com.
 4. Confirm the carousel cycles the folder photos and Left/Right work.
 5. Embed mode: toggle it in settings, paste a playlist link, press LOAD.
-6. Last verified 2026-11-08 in headless Chrome 156 with a stubbed Spotify API (playing, idle, controls, 403, login code, token exchange) at 1920x1080, 1280x720 and 720x1280. A real Spotify login is untested until the owner's Client ID exists.
+6. Last verified 2026-11-08 in headless Chrome 156 with a stubbed Spotify API (playing, idle, controls, 403, login code, token exchange) at 1920x1080, 1280x720 and 720x1280. Real login and now-playing verified by the owner on desktop Chrome via GitHub Pages the same day.
 
 ## Deploy
 GitHub Pages: public repo, upload `index.html` and the `photos/` folder, Settings > Pages > Deploy from a branch > main > / (root). Open the `https://<user>.github.io/<repo>/` link on the TV and bookmark it. Add that exact URL (with trailing slash) as a redirect URI in the Spotify dashboard. For true always-on use, a stick with Fully Kiosk Browser or a mini PC running Chrome with `--kiosk` is more reliable than the TV's own browser.
 
 ## Possible next work
 - Test on the real TV and record the webOS version and results here.
-- Build the owner's message and signed-by text into the file, and set `CLIENT_ID`, so nothing needs setting up on the TV.
+- Build the owner's message and signed-by text into the file so nothing needs setting up on the TV.
 - Portrait layout: the Spotify card slightly overlaps the greeting box at 720x1280.
 - Remove the unused code above.
 

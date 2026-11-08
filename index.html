@@ -557,7 +557,7 @@ input[type="range"] { width: 100%; }
   $('pl').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadPl(); e.stopPropagation(); });
 
   /* spotify live: Web API with PKCE login. Shows what is playing on the account and controls that device (Premium). */
-  var CLIENT_ID = ''; /* optional: put your Client ID here so the TV needs no setup */
+  var CLIENT_ID = '704b221aab944fa194d0cb0bd78bc9ee'; /* Spotify app Client ID (public, not a secret) */
   var SCOPES = 'user-read-playback-state user-read-currently-playing user-modify-playback-state';
   var SPK = 'diwalitv.sp', T = {}, P = null, P_at = 0, pollT = null, refreshing = null, busy = false, devCache = [];
   try { T = JSON.parse(localStorage.getItem(SPK) || '{}') || {}; } catch (e) { T = {}; }
